@@ -9,7 +9,7 @@ load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 STRING_SESSION = os.getenv("STRING_SESSION")
-KEYWORDS = [k.strip().lower() for k in os.getenv("KEYWORDS").split(",")]
+KEYWORDS = [k.strip().lower() for k in os.getenv("KEYWORDS").split(";")]
 FORWARD_CHAT_ID = int(os.getenv("FORWARD_CHAT_ID"))
 LOG_FILE = "logs/bot.log"
 

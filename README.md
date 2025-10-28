@@ -1,116 +1,112 @@
-# Telegram Keyword Forwarder Bot
+# Telegram Keyword Forwarder
 
-Este projeto implementa um bot para Telegram que monitora mensagens recebidas em chats (privados ou grupos) e encaminha automaticamente aquelas que contenham palavras-chave específicas para um chat definido.  
-O sistema é desenvolvido em **Python**, utiliza a biblioteca **python-telegram-bot** e é totalmente containerizado com **Docker** e **Docker Compose**.  
-Os registros de execução e eventos são mantidos em arquivos de log persistentes.
+Este projeto cria um bot que monitora mensagens em chats do Telegram e encaminha mensagens que contenham certas palavras-chave para outro chat.
 
 ---
 
-## 1. Funcionalidades
+### Pré-requisitos
 
-- Leitura de todas as mensagens recebidas (texto e mídia com legenda)  
-- Detecção de palavras-chave (case-insensitive)  
-- Encaminhamento automático das mensagens que correspondam aos critérios  
-- Registro detalhado em log, incluindo remetente, conteúdo, chat e horário  
-- Configuração simplificada por variáveis de ambiente (.env)  
-- Execução isolada em container Docker  
+- Python 3.10 ou superior
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+- Conta no Telegram e API_ID/API_HASH
+- Docker (para rodar via container, opcional)
 
 ---
 
-## 3. Requisitos
+### Configuração
 
-- Python 3.10+ (caso queira executar localmente)
-- Docker
-- Docker Compose
-- Um bot criado através do **@BotFather** no Telegram
-
----
-
-## 4. Criação do Bot
-
-1. No Telegram, abra o chat com **@BotFather**  
-2. Envie o comando `/newbot`  
-3. Escolha o nome e o username do bot  
-4. Copie o token de autenticação fornecido; ele será utilizado na configuração do projeto  
-
----
-
-## 5. Identificação do Chat ID
-
-O **chat_id** é o identificador único de cada conversa (chat privado, grupo ou canal) no Telegram.  
-Ele define para onde as mensagens serão encaminhadas.
-
-### 5.1. Descobrir Chat ID de um Usuário
-1. Inicie o bot no Telegram e envie o comando `/start`  
-2. Execute o container do bot e verifique os logs gerados  
-3. O log exibirá o ID do chat na linha correspondente à mensagem recebida  
-
-Alternativamente, é possível obter o chat ID utilizando o bot **@userinfobot**.  
-Após enviar `/start`, o bot responderá com o identificador do seu usuário.
-
-### 5.2. Chat ID de um Grupo
-1. Adicione o bot ao grupo  
-2. Envie uma mensagem qualquer no grupo  
-3. Verifique os logs do bot. O campo “Chat” exibirá o nome e o ID (geralmente iniciado com `-100`)
-
----
-
-## 6. Configuração (.env)
-
-Crie um arquivo `.env` na raiz do projeto com o seguinte conteúdo:
+###  1. Clone o repositório:
 
 ```bash
-BOT_TOKEN=123456:ABCdefGHIjklMNOpqrSTUvwxYZ
-MY_CHAT_ID=123456789
-KEYWORDS=alarme,urgente,erro,teste
+git clone <URL_DO_REPOSITORIO>
+cd telegram-keyword-forwarder
 ```
 
-## 7. Execução com Docker Compose
+### 2. Crie um arquivo `.env` com as variáveis de ambiente:
 
-### 7.1. Construção e inicialização
-
-```docker compose up -d --build```
-
-### 7.2. Verificação de logs em tempo real
-
-```docker compose logs -f```
-
-### 7.3. Interrupção do serviço
-
-```docker compose down```
-
-## 8. Logs
-
-Os registros de execução são gravados em logs/bot.log.
-Cada entrada contém informações detalhadas sobre mensagens detectadas e encaminhadas, incluindo usuário, texto, chat e data/hora.
-
-------------------------------------------------------------
-
-## 9. Execução Local (sem Docker)
-
-Para execução direta com Python:
-```
-pip install python-telegram-bot==20.6
-BOT_TOKEN="..." MY_CHAT_ID="..." python keyword_forwarder_bot.py
+```env
+API_ID=seu_api_id
+API_HASH=seu_api_hash
+STRING_SESSION=sua_string_session
+FORWARD_CHAT_ID=chat_destino
+KEYWORDS=Samsung,S23,S24,S25,Iphone
 ```
 
-## 10. Personalizações
+> Observação: Separe múltiplas palavras-chave por vírgula.
 
-1. Alterar palavras-chave: edite a variável KEYWORDS no arquivo .env
+### 3. Instale as dependências:
 
-2. Limitar a mensagens de texto: substitua filters.ALL por filters.TEXT no script principal
+```bash
+pip install -r requirements.txt
+```
 
-3. Alterar destino de encaminhamento: modifique o valor de MY_CHAT_ID
+---
 
-## 11. Modo de Privacidade do Bot
+### Rodando localmente
 
-Por padrão, os bots no Telegram têm o modo de privacidade ativado, o que impede que leiam todas as mensagens em grupos.
-Para desativá-lo:
+```bash
+python user_forwarder.py
+```
 
-1. No chat com o @BotFather, envie /setprivacy
+---
 
-2. Escolha o seu bot
+### Rodando via Docker
 
-3. Selecione Disable
+### 1. Build da imagem:
 
-Isso permite que o bot processe todas as mensagens no grupo.
+```bash
+docker build -t telegram-forwarder .
+```
+
+### 2. Rodar o container:
+
+```bash
+docker run --env-file .env telegram-forwarder
+```
+
+---
+
+### Deploy no Google Cloud Run
+
+### 1. Build e push da imagem para Google Container Registry:
+
+```bash
+gcloud builds submit --tag gcr.io/<PROJETO>/telegram-forwarder
+```
+
+### 2. Criar o job no Cloud Run:
+
+```bash
+gcloud beta run jobs create telegram-user-forwarder \
+    --image gcr.io/<PROJETO>/telegram-forwarder \
+    --region us-central1 \
+    --env-vars-file .env
+```
+
+### 3. Executar o job:
+
+```bash
+gcloud beta run jobs execute telegram-user-forwarder --region us-central1
+```
+
+### 4. Ver logs:
+
+```bash
+gcloud logs read --project=<PROJETO> --limit=50
+```
+
+---
+
+### Observações
+
+- Cada `STRING_SESSION` só pode ser usado por uma instância do bot por vez.
+- Ao atualizar o código, lembre-se de rebuildar e subir a nova imagem.
+- Evite usar variáveis com caracteres especiais sem aspas no `.env`.
+
+---
+
+### Referências
+
+- [Telethon](https://docs.telethon.dev/)
+- [Google Cloud Run Jobs](https://cloud.google.com/run/docs)
+- [Google Cloud Pub/Sub](https://cloud.google.com/pubsub/docs)
