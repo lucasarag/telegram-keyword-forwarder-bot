@@ -1,0 +1,9 @@
+services:
+  forwarder:
+    build: .
+    container_name: telegram_user_forwarder
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
