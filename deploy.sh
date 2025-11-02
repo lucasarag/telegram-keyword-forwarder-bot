@@ -1,15 +1,15 @@
 #!/bin/bash
-set -e  # para o script caso algum comando falhe
+set -e
 
-# ==============================
+# ==========================
 # CONFIGURAÇÕES
-# ==============================
+# ==========================
 REGION="southamerica-east1"
 BACKEND_SERVICE="telegram-forward-backend"
 FRONTEND_SERVICE="telegram-forward-ui"
 API_TOKEN="meu_token_super_seguro_123"
 
-echo "🚀 Iniciando deploy automático..."
+
 
 # ==========================
 # AUTENTICAÇÃO GCLOUD
@@ -21,6 +21,21 @@ if [ -z "$ACTIVE_ACCOUNT" ]; then
 else
     echo "Conta gcloud ativa: $ACTIVE_ACCOUNT"
 fi
+
+# ==========================
+# VERIFICAÇÃO DO PROJECT_ID
+# ==========================
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "")
+if [ -z "$PROJECT_ID" ]; then
+    echo "❌ Nenhum projeto Google Cloud configurado."
+    echo "Listando projetos disponíveis..."
+    gcloud projects list
+    echo ""
+    read -p "Digite o PROJECT_ID que deseja usar: " PROJECT_ID
+    gcloud config set project $PROJECT_ID
+fi
+echo "✅ Projeto atual: $PROJECT_ID"
+
 gcloud config set project "$PROJECT_ID"
 gcloud auth configure-docker
 
@@ -35,10 +50,10 @@ else
     echo "App Engine já existe."
 fi
 
-# ==============================
-# 1️⃣ DEPLOY DO BACKEND
-# ==============================
-echo "📦 Deploy do backend no Cloud Run..."
+# ==========================
+# DEPLOY BACKEND
+# ==========================
+echo "🚀 Iniciando deploy do backend..."
 gcloud run deploy $BACKEND_SERVICE \
   --source ./backend \
   --region $REGION \
@@ -46,39 +61,28 @@ gcloud run deploy $BACKEND_SERVICE \
   --allow-unauthenticated \
   --quiet
 
-# Captura a URL pública do backend
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE \
   --region $REGION \
   --format 'value(status.url)')
+echo "✅ Backend URL: $BACKEND_URL"
 
-echo "✅ Backend implantado em: $BACKEND_URL"
-
-# ==============================
-# 2️⃣ ATUALIZA .ENV DO FRONTEND
-# ==============================
-echo "📝 Atualizando .env do frontend..."
+# ==========================
+# ATUALIZA .ENV FRONTEND
+# ==========================
 FRONTEND_ENV_PATH="./frontend/.env"
 
-# Cria o arquivo .env se não existir
-if [ ! -f "$FRONTEND_ENV_PATH" ]; then
-  touch "$FRONTEND_ENV_PATH"
-fi
-
-# Remove linhas antigas e escreve variáveis novas
 grep -v "NEXT_PUBLIC_API_URL" "$FRONTEND_ENV_PATH" > "$FRONTEND_ENV_PATH.tmp" || true
 grep -v "NEXT_PUBLIC_API_TOKEN" "$FRONTEND_ENV_PATH.tmp" > "$FRONTEND_ENV_PATH.tmp2" || true
 mv "$FRONTEND_ENV_PATH.tmp2" "$FRONTEND_ENV_PATH"
 
 echo "NEXT_PUBLIC_API_URL=$BACKEND_URL" >> "$FRONTEND_ENV_PATH"
 echo "NEXT_PUBLIC_API_TOKEN=$API_TOKEN" >> "$FRONTEND_ENV_PATH"
+echo "✅ .env frontend atualizado"
 
-echo "✅ .env do frontend atualizado:"
-cat "$FRONTEND_ENV_PATH"
-
-# ==============================
-# 3️⃣ DEPLOY DO FRONTEND
-# ==============================
-echo "📦 Deploy do frontend no Cloud Run..."
+# ==========================
+# DEPLOY FRONTEND
+# ==========================
+echo "🚀 Iniciando deploy do frontend..."
 gcloud run deploy $FRONTEND_SERVICE \
   --source ./frontend \
   --region $REGION \
@@ -89,13 +93,6 @@ gcloud run deploy $FRONTEND_SERVICE \
 FRONTEND_URL=$(gcloud run services describe $FRONTEND_SERVICE \
   --region $REGION \
   --format 'value(status.url)')
+echo "✅ Frontend URL: $FRONTEND_URL"
 
-echo "✅ Frontend implantado em: $FRONTEND_URL"
-
-# ==============================
-# ✅ FINALIZAÇÃO
-# ==============================
-echo ""
 echo "🎉 Deploy concluído com sucesso!"
-echo "🌐 Backend:  $BACKEND_URL"
-echo "💻 Frontend: $FRONTEND_URL"

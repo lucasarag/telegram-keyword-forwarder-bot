@@ -1,16 +1,27 @@
+import os
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from telethon import TelegramClient, events
 from pydantic import BaseModel
 from typing import Optional
-import uvicorn
 
-from config import settings
-from utils.logger import logger
+from utils.logger import logger  # seu logger customizado
 
+# ==========================
+# TOKEN DE AUTENTICAÇÃO
+# ==========================
+API_TOKEN = os.environ.get("API_TOKEN", "")
+if not API_TOKEN:
+    raise ValueError("API_TOKEN não definido nas variáveis de ambiente")
+
+# ==========================
+# APP FASTAPI
+# ==========================
 app = FastAPI(title="Telegram Forward Service")
 
-# Estado global simples (em produção use Redis ou Firestore)
+# ==========================
+# ESTADO GLOBAL
+# ==========================
 STATE = {
     "client": None,
     "running": False,
@@ -19,7 +30,9 @@ STATE = {
     "logs": []
 }
 
-# ========== MODELOS ==========
+# ==========================
+# MODELOS
+# ==========================
 class LoginData(BaseModel):
     api_id: int
     api_hash: str
@@ -29,11 +42,21 @@ class ConfigData(BaseModel):
     keyword: str
     chat_id: int
 
-# ========== ENDPOINTS ==========
+# ==========================
+# MIDDLEWARE TOKEN
+# ==========================
+@app.middleware("http")
+async def verify_token(request: Request, call_next):
+    token = request.headers.get("x-api-token")
+    if token != API_TOKEN:
+        return HTTPException(status_code=401, detail="Unauthorized")
+    return await call_next(request)
 
+# ==========================
+# ENDPOINTS
+# ==========================
 @app.post("/login")
 async def login(data: LoginData):
-    """Faz login e salva a sessão em memória."""
     if STATE["client"]:
         await STATE["client"].disconnect()
 
@@ -47,7 +70,6 @@ async def login(data: LoginData):
 
 @app.post("/config")
 async def config(data: ConfigData):
-    """Atualiza keyword e chat_id."""
     STATE["keyword"] = data.keyword.lower()
     STATE["target_chat"] = data.chat_id
     logger.info(f"Configuração atualizada: keyword={data.keyword}, chat={data.chat_id}")
@@ -56,7 +78,6 @@ async def config(data: ConfigData):
 
 @app.post("/start")
 async def start_forward():
-    """Inicia o listener de mensagens."""
     if STATE["running"]:
         raise HTTPException(400, "O listener já está em execução.")
 
@@ -66,17 +87,14 @@ async def start_forward():
 
     keyword = STATE["keyword"]
     target_chat = STATE["target_chat"]
-
     if not keyword or not target_chat:
         raise HTTPException(400, "Configure keyword e chat_id antes de iniciar.")
 
     @client.on(events.NewMessage)
     async def handler(event):
         text = event.message.message or ""
-        log_entry = f"Recebido: {text}"
-        STATE["logs"].append(log_entry)
-        logger.info(log_entry)
-
+        STATE["logs"].append(f"Recebido: {text}")
+        logger.info(f"Recebido: {text}")
         if keyword in text.lower():
             await client.send_message(target_chat, event.message)
             STATE["logs"].append(f"✅ Encaminhado: {text}")
@@ -84,14 +102,12 @@ async def start_forward():
 
     STATE["running"] = True
     asyncio.create_task(client.run_until_disconnected())
-
     logger.info("Forwarding iniciado.")
     return {"message": "Forwarding iniciado."}
 
 
 @app.post("/stop")
 async def stop_forward():
-    """Para o listener e desconecta o cliente."""
     if not STATE["running"]:
         raise HTTPException(400, "O listener não está em execução.")
     client: TelegramClient = STATE["client"]
@@ -103,8 +119,17 @@ async def stop_forward():
 
 @app.get("/logs")
 async def get_logs(limit: Optional[int] = 50):
-    """Retorna os últimos logs."""
     return STATE["logs"][-limit:]
+
+
+@app.get("/status")
+async def status():
+    return {
+        "client_connected": STATE["client"] is not None,
+        "forwarding": STATE["running"],
+        "keyword": STATE["keyword"],
+        "target_chat": STATE["target_chat"]
+    }
 
 
 @app.get("/")
@@ -112,5 +137,10 @@ def root():
     return {"status": "ok", "message": "Telegram Forward API rodando!"}
 
 
+# ==========================
+# Uvicorn para Cloud Run
+# ==========================
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080)
+    import uvicorn
+    PORT = int(os.environ.get("PORT", 8080))  # Cloud Run define essa variável
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT)

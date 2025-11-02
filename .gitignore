@@ -4,3 +4,4 @@ user-forwarder/logs/bot.log
 bot-forwarder/logs/bot.log
 bot-forwarder/.env
 user-forwarder/.env
+backend/utils/__pycache__/logger.cpython-313.pyc
