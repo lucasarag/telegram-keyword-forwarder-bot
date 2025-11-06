@@ -1,6 +1,0 @@
-
-logs/bot.log
-user-forwarder/logs/bot.log
-bot-forwarder/logs/bot.log
-bot-forwarder/.env
-user-forwarder/.env

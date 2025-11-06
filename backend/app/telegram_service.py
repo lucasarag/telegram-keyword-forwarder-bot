@@ -1,0 +1,98 @@
+from __future__ import annotations
+from telethon import TelegramClient, events
+from telethon.errors import SessionPasswordNeededError
+from typing import Optional, List
+import asyncio
+import uuid
+
+from .state import CONFIG, LOGS, DATA_DIR, RUNTIME
+
+SESSION_DIR = DATA_DIR / "sessions"
+SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+class TelegramService:
+    def __init__(self) -> None:
+        self.client: Optional[TelegramClient] = None
+        self.lock = asyncio.Lock()
+
+    async def _log(self, msg: str) -> None:
+        await LOGS.publish(msg)
+
+    async def start_login(self, api_id: int, api_hash: str, phone: str | None) -> dict:
+        async with self.lock:
+            session_id = str(uuid.uuid4())
+            session_path = SESSION_DIR / f"{session_id}.session"
+            await self._log(f"[login] iniciando sessão {session_id}")
+
+            self.client = TelegramClient(str(session_path), api_id, api_hash)
+            await self.client.connect()
+
+            if await self.client.is_user_authorized():
+                await self._log("[login] sessão já autorizada")
+                RUNTIME.update({"session_id": session_id, "is_logged": True})
+                await self._install_handlers()
+                return {"status": "already_logged", "session_id": session_id}
+
+            if not phone:
+                await self._log("[login] telefone não informado; necessário para enviar o código")
+                return {"status": "phone_required"}
+
+            sent = await self.client.send_code_request(phone)
+            await self._log(f"[login] código enviado para {phone}")
+            RUNTIME.update({"session_id": session_id})
+            return {"status": "code_sent", "session_id": session_id}
+
+    async def confirm_code(self, code: str, phone: str | None = None, password: str | None = None) -> dict:
+        async with self.lock:
+            if not self.client:
+                return {"error": "client_not_initialized"}
+
+            try:
+                if password:  # 2FA
+                    await self.client.sign_in(password=password)
+                else:
+                    await self.client.sign_in(code=code)
+                RUNTIME["is_logged"] = True
+                await self._log("[login] sessão autenticada com sucesso")
+                await self._install_handlers()
+                return {"status": "logged"}
+
+            except SessionPasswordNeededError:
+                await self._log("[login] 2FA necessário — envie a senha")
+                return {"status": "password_required"}
+
+            except Exception as e:
+                await self._log(f"[login] erro: {e}")
+                return {"error": str(e)}
+
+    async def _install_handlers(self) -> None:
+        assert self.client is not None
+
+        @self.client.on(events.NewMessage)
+        async def on_message(event):
+            try:
+                text = event.message.message or ""
+                await self._log(f"[recv] {event.chat_id}: {text}")
+
+                lowered = text.lower()
+                keywords: List[str] = [k.strip().lower() for k in CONFIG.keywords]
+                if keywords and any(k in lowered for k in keywords):
+                    if CONFIG.chat_id:
+                        await self.client.send_message(CONFIG.chat_id, text)
+                        await self._log(f"[fwd] → {CONFIG.chat_id}: {text}")
+                    else:
+                        await self._log("[warn] chat_id não configurado; mensagem não encaminhada")
+
+            except Exception as e:
+                await self._log(f"[handler_error] {e}")
+
+        await self.client.start()
+        await self._log("[runtime] handlers instalados e cliente iniciado")
+
+    async def run_forever(self) -> None:
+        while True:
+            if self.client:
+                await self.client.run_until_disconnected()
+            await asyncio.sleep(1)
+
+SERVICE = TelegramService()
