@@ -24,26 +24,51 @@ class TelegramService:
             session_path = SESSION_DIR / f"{session_id}.session"
             await self._log(f"[login] iniciando sessão {session_id}")
 
-            self.client = TelegramClient(str(session_path), api_id, api_hash)
-            await self.client.connect()
-
-            if await self.client.is_user_authorized():
-                await self._log("[login] sessão já autorizada")
-                RUNTIME.update({"session_id": session_id, "is_logged": True})
-                await self._install_handlers()
-                return {"status": "already_logged", "session_id": session_id}
-
-            if not phone:
-                await self._log("[login] telefone não informado; necessário para enviar o código")
-                return {"status": "phone_required"}
-
             try:
+                # Create client with auto-reconnect enabled
+                self.client = TelegramClient(
+                    str(session_path),
+                    api_id,
+                    api_hash,
+                    connection_retries=5,
+                    retry_delay=1,
+                    auto_reconnect=True
+                )
+                
+                # Connect without checking authorization first (to avoid CancelledError)
+                await self._log("[login] conectando ao Telegram...")
+                await self.client.connect()
+                
+                # Wait a bit for connection to stabilize
+                await asyncio.sleep(1)
+
+                # Check if already authorized
+                try:
+                    if await self.client.is_user_authorized():
+                        await self._log("[login] sessão já autorizada")
+                        RUNTIME.update({"session_id": session_id, "is_logged": True})
+                        await self._install_handlers()
+                        return {"status": "already_logged", "session_id": session_id}
+                except asyncio.CancelledError:
+                    await self._log("[login] verificação de autorização cancelada, continuando com login...")
+                    pass
+
+                if not phone:
+                    await self._log("[login] telefone não informado; necessário para enviar o código")
+                    return {"status": "phone_required"}
+
+                # Send code request
+                await self._log(f"[login] enviando código para {phone}...")
                 sent = await self.client.send_code_request(phone)
                 await self._log(f"[login] código enviado para {phone}")
                 RUNTIME.update({"session_id": session_id})
                 return {"status": "code_sent", "session_id": session_id}
+                
+            except asyncio.CancelledError:
+                await self._log(f"[login] operação cancelada, isso pode indicar migração de DC")
+                return {"error": "Operação cancelada. Tente novamente em alguns segundos."}
             except Exception as e:
-                await self._log(f"[login] erro ao enviar código: {e}")
+                await self._log(f"[login] erro: {e}")
                 return {"error": str(e)}
 
     async def confirm_code(self, code: str, phone: str | None = None, password: str | None = None) -> dict:
@@ -52,6 +77,11 @@ class TelegramService:
                 return {"error": "client_not_initialized"}
 
             try:
+                # Ensure connection before signing in
+                if not self.client.is_connected():
+                    await self.client.connect()
+                    await asyncio.sleep(0.5)
+                
                 if password:  # 2FA
                     await self.client.sign_in(password=password)
                 else:
