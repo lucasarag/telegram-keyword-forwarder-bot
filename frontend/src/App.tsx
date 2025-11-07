@@ -43,11 +43,26 @@ export default function App() {
       })
       if (res.status === 'password_required') {
         const pwd = prompt('2FA habilitado. Digite a senha:')
-        if (pwd) await api('/api/login/confirm', { method:'POST', body:JSON.stringify({ code, phone:phone||null, password:pwd }) })
+        if (pwd) {
+          await api('/api/login/confirm', { method:'POST', body:JSON.stringify({ code, phone:phone||null, password:pwd }) })
+        }
       }
+      if (res.error) {
+        alert(`Erro: ${res.error}`)
+        return
+      }
+      // Check status after login attempt
       const st = await api<Status>('/api/status')
-      if (st.is_logged) setStep('dash')
-    } finally { setBusy(false) }
+      if (st.is_logged) {
+        setStep('dash')
+      } else {
+        alert('Falha ao autenticar. Verifique o código e tente novamente.')
+      }
+    } catch (err: any) {
+      alert(`Erro: ${err.message || 'Falha na comunicação com o servidor'}`)
+    } finally {
+      setBusy(false)
+    }
   }
   async function handleSave() {
     setBusy(true)

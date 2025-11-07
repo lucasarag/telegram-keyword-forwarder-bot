@@ -1,0 +1,9 @@
+
+logs/bot.log
+user-forwarder/logs/bot.log
+bot-forwarder/logs/bot.log
+bot-forwarder/.env
+user-forwarder/.env
+backend/sessions
+backend/session.session
+backend/utils/__pycache__/

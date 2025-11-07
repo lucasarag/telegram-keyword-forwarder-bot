@@ -18,10 +18,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_DIR = ROOT / "frontend" / "dist"
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
-
 class StartPayload(BaseModel):
     api_id: int
     api_hash: str
@@ -73,3 +69,8 @@ async def ws_logs(ws: WebSocket):
 @app.on_event("startup")
 async def _startup():
     asyncio.create_task(SERVICE.run_forever())
+
+# Mount static files AFTER all API routes to avoid shadowing them
+FRONTEND_DIR = ROOT / "frontend" / "dist"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
