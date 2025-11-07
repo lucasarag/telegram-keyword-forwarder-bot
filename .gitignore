@@ -4,6 +4,9 @@ user-forwarder/logs/bot.log
 bot-forwarder/logs/bot.log
 bot-forwarder/.env
 user-forwarder/.env
+<<<<<<< HEAD
 backend/sessions
 backend/session.session
 backend/utils/__pycache__/
+=======
+>>>>>>> parent of bfbdab3 (Final Version)

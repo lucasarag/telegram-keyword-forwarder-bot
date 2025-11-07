@@ -15,12 +15,15 @@
   },
   "devDependencies": {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "@types/react": "^18.3.7",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
 =======
+=======
+>>>>>>> parent of bfbdab3 (Final Version)
     "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -29,6 +32,9 @@
     "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.0.1"
+<<<<<<< HEAD
+>>>>>>> parent of bfbdab3 (Final Version)
+=======
 >>>>>>> parent of bfbdab3 (Final Version)
   }
 }
