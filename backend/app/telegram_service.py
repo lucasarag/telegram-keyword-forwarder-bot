@@ -37,10 +37,14 @@ class TelegramService:
                 await self._log("[login] telefone não informado; necessário para enviar o código")
                 return {"status": "phone_required"}
 
-            sent = await self.client.send_code_request(phone)
-            await self._log(f"[login] código enviado para {phone}")
-            RUNTIME.update({"session_id": session_id})
-            return {"status": "code_sent", "session_id": session_id}
+            try:
+                sent = await self.client.send_code_request(phone)
+                await self._log(f"[login] código enviado para {phone}")
+                RUNTIME.update({"session_id": session_id})
+                return {"status": "code_sent", "session_id": session_id}
+            except Exception as e:
+                await self._log(f"[login] erro ao enviar código: {e}")
+                return {"error": str(e)}
 
     async def confirm_code(self, code: str, phone: str | None = None, password: str | None = None) -> dict:
         async with self.lock:
@@ -91,8 +95,17 @@ class TelegramService:
 
     async def run_forever(self) -> None:
         while True:
-            if self.client:
-                await self.client.run_until_disconnected()
-            await asyncio.sleep(1)
+            try:
+                if self.client and self.client.is_connected():
+                    await self.client.run_until_disconnected()
+                    await self._log("[runtime] cliente desconectado, aguardando reconexão...")
+                else:
+                    await asyncio.sleep(5)
+            except ConnectionError as e:
+                await self._log(f"[runtime] erro de conexão: {e}, tentando reconectar em 5s...")
+                await asyncio.sleep(5)
+            except Exception as e:
+                await self._log(f"[runtime] erro inesperado: {e}")
+                await asyncio.sleep(5)
 
 SERVICE = TelegramService()
