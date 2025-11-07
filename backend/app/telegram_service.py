@@ -91,12 +91,8 @@ class TelegramService:
 
     async def run_forever(self) -> None:
         while True:
-            if self.client and self.client.is_connected():
-                try:
-                    await self.client.run_until_disconnected()
-                except Exception as e:
-                    await self._log(f"[run_forever] erro: {e}")
-            await asyncio.sleep(5)
+            if self.client:
+                await self.client.run_until_disconnected()
+            await asyncio.sleep(1)
 
 SERVICE = TelegramService()
-

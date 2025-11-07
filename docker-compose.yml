@@ -1,0 +1,19 @@
+services:
+  telegram-forwarder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-forwarder
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data   # persiste sessões, logs e config.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - forwarder_net
+
+networks:
+  forwarder_net:
+    driver: bridge
