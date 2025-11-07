@@ -112,8 +112,32 @@ class TelegramService:
                 keywords: List[str] = [k.strip().lower() for k in CONFIG.keywords]
                 if keywords and any(k in lowered for k in keywords):
                     if CONFIG.chat_id:
-                        await self.client.send_message(CONFIG.chat_id, text)
-                        await self._log(f"[fwd] → {CONFIG.chat_id}: {text}")
+                        try:
+                            target = CONFIG.chat_id
+                            
+                            # Try different approaches to send the message
+                            # 1. If it starts with @, use as username
+                            if isinstance(target, str) and target.startswith('@'):
+                                await self.client.send_message(target, text)
+                                await self._log(f"[fwd] → {target}: {text}")
+                            # 2. If it's a string that looks like a phone number, try with +
+                            elif isinstance(target, str) and target.isdigit() and len(target) >= 10:
+                                # Try with + prefix for phone numbers
+                                phone_target = f"+{target}"
+                                await self._log(f"[fwd] tentando enviar para telefone {phone_target}...")
+                                await self.client.send_message(phone_target, text)
+                                await self._log(f"[fwd] → {phone_target}: {text}")
+                            # 3. Try as numeric ID
+                            else:
+                                target_id = int(target) if isinstance(target, str) else target
+                                await self.client.send_message(target_id, text)
+                                await self._log(f"[fwd] → {target_id}: {text}")
+                                
+                        except ValueError as ve:
+                            await self._log(f"[error] chat_id inválido '{CONFIG.chat_id}': {ve}")
+                        except Exception as send_error:
+                            await self._log(f"[error] falha ao enviar para {CONFIG.chat_id}: {send_error}")
+                            await self._log(f"[dica] Certifique-se de que o chat_id está correto. Use @username, +telefone ou ID numérico")
                     else:
                         await self._log("[warn] chat_id não configurado; mensagem não encaminhada")
 
@@ -122,6 +146,27 @@ class TelegramService:
 
         await self.client.start()
         await self._log("[runtime] handlers instalados e cliente iniciado")
+
+    async def get_dialogs(self) -> list:
+        """Get list of recent chats/dialogs to help find the correct chat_id"""
+        if not self.client or not self.client.is_connected():
+            return []
+        
+        try:
+            dialogs = []
+            async for dialog in self.client.iter_dialogs(limit=50):
+                dialogs.append({
+                    "id": dialog.id,
+                    "name": dialog.name,
+                    "title": dialog.title if hasattr(dialog, 'title') else dialog.name,
+                    "is_user": dialog.is_user,
+                    "is_group": dialog.is_group,
+                    "is_channel": dialog.is_channel,
+                })
+            return dialogs
+        except Exception as e:
+            await self._log(f"[error] falha ao obter diálogos: {e}")
+            return []
 
     async def run_forever(self) -> None:
         while True:

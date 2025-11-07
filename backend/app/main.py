@@ -55,6 +55,12 @@ async def update_settings(p: SettingsPayload):
     CONFIG.save()
     return {"ok": True}
 
+@app.get("/api/dialogs")
+async def get_dialogs():
+    """Get list of recent chats to help find the correct chat_id"""
+    dialogs = await SERVICE.get_dialogs()
+    return {"dialogs": dialogs}
+
 @app.websocket("/api/ws/logs")
 async def ws_logs(ws: WebSocket):
     await ws.accept()

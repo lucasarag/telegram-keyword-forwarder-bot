@@ -1,1 +1,2 @@
-telegram-keyword-forwarder-bot/data
+/data
+data/logs.jsonl
